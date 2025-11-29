@@ -16,10 +16,25 @@ pip install -r requirements.txt
 
 ## Running the API
 
+### Local Development
+
 Start the development server:
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+### Deployment (Railway)
+
+This project is configured for Railway deployment with:
+- `runtime.txt` - Specifies Python 3.11.7
+- `Procfile` - Defines the start command
+- `railway.json` - Railway-specific configuration
+
+To deploy:
+1. Push your code to GitHub
+2. Connect your repository to Railway
+3. Railway will automatically detect and deploy your FastAPI app
+4. The API will be available at your Railway-provided URL
 
 ## API Documentation
 
