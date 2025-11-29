@@ -1,0 +1,13 @@
+# Railway configuration for multiple services
+# This file tells Railway to create two services: web and worker
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = ""
+
+# Note: Railway will use Procfile to determine process types
+# web: API server
+# worker: Background worker
+
