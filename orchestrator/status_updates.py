@@ -39,6 +39,7 @@ class StatusUpdateHelper:
                 "project_id": project_id,
                 "message": message,
                 "agent_role": agent_role,
+                "activity_type": activity_type,
                 "metadata": metadata or {},
                 "created_at": datetime.utcnow().isoformat()
             }

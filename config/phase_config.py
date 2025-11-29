@@ -9,12 +9,12 @@ from enum import Enum
 
 
 class Phase(str, Enum):
-    """Buildbox phases for MVP development."""
-    DISCOVERY = "discovery"  # Phase 0: Research, Brand, PRD
-    ARCHITECTURE = "architecture"  # Phase 1: System design, file structure
-    DEVELOPMENT = "development"  # Phase 2-5: Feature implementation
-    QA = "qa"  # Phase 4: Testing and validation
-    DEPLOYMENT = "deployment"  # Phase 6: Deploy and marketing
+    """Buildbox phases for MVP development (SOP/Checklist approach)."""
+    DISCOVERY = "discovery"  # Phase 0: Market research, Brand identity, PRD
+    DESIGN = "design"  # Phase 1: UI/UX mockups (all screens/pages)
+    DEVELOPMENT = "development"  # Phase 2: Build MVP
+    MARKETING_SETUP = "marketing_setup"  # Phase 3: Email, Analytics, finishing touches
+    DEPLOYMENT = "deployment"  # Phase 4: Deploy and handoff
 
 
 class PhaseConfig:
@@ -22,27 +22,30 @@ class PhaseConfig:
     
     # Tasks that require approval before proceeding
     APPROVAL_REQUIRED_TASKS = [
+        "create_brand_identity",  # Brand kit needs user approval
         "write_prd",  # PRD needs user approval
-        "design_architecture",  # Architecture needs approval
+        "create_ui_ux_mockups",  # Design mockups need user approval
     ]
     
     # Phase definitions with their tasks and agent assignments
+    # These are the "checklist items" - agents have autonomy in HOW to complete them
     PHASES = [
         {
             "order": 0,
-            "name": "Discovery & Strategy",
+            "name": "Discovery",
             "designation": Phase.DISCOVERY.value,
             "queue": "discovery_tasks",
+            "is_deterministic": True,  # Follows system prompt/SOP
             "tasks": [
                 {
-                    "type": "research_market",
+                    "type": "conduct_market_research",
                     "agent": "researcher",
-                    "description": "Analyze market and competitors"
+                    "description": "Conduct market research and competitor analysis"
                 },
                 {
-                    "type": "generate_brand",
+                    "type": "create_brand_identity",
                     "agent": "brand_strategist",
-                    "description": "Create brand identity and logo"
+                    "description": "Create brand identity (logo, colors, fonts, favicons)"
                 },
                 {
                     "type": "write_prd",
@@ -50,60 +53,77 @@ class PhaseConfig:
                     "description": "Create Product Requirements Document"
                 }
             ],
-            "deliverables": ["market_analysis", "brand_kit", "prd"]
+            "deliverables": ["market_analysis", "brand_kit", "prd"],
+            "input_dependencies": [],  # No dependencies
+            "output_required_for": [Phase.DESIGN.value]  # Design phase needs these
         },
         {
             "order": 1,
-            "name": "Architecture & Planning",
-            "designation": Phase.ARCHITECTURE.value,
+            "name": "Design",
+            "designation": Phase.DESIGN.value,
             "queue": "build_tasks",
+            "is_deterministic": True,  # Follows system prompt/SOP
             "tasks": [
                 {
-                    "type": "design_architecture",
-                    "agent": "architect",
-                    "description": "Design system architecture and file structure"
+                    "type": "create_ui_ux_mockups",
+                    "agent": "designer",
+                    "description": "Create UI/UX design mockups for all screens and pages"
                 }
             ],
-            "deliverables": ["file_structure", "schema", "architecture_doc"]
+            "deliverables": ["design_mockups", "design_system"],
+            "input_dependencies": ["create_brand_identity", "write_prd"],  # Needs approved brand + PRD
+            "output_required_for": [Phase.DEVELOPMENT.value]  # Development needs designs
         },
         {
             "order": 2,
             "name": "Development",
             "designation": Phase.DEVELOPMENT.value,
             "queue": "agent_execution",
+            "is_deterministic": False,  # Agent creates subtasks probabilistically
             "tasks": [
                 {
-                    "type": "setup_repo",
-                    "agent": "devops",
-                    "description": "Initialize git repository"
-                },
-                {
-                    "type": "implement_feature",
+                    "type": "build_mvp",
                     "agent": "developer",
-                    "description": "Implement features from PRD"
+                    "description": "Build the MVP based on PRD and designs"
                 }
             ],
-            "deliverables": ["source_code", "git_repo"]
+            "deliverables": ["source_code", "git_repo", "working_mvp"],
+            "input_dependencies": ["create_ui_ux_mockups", "write_prd"],  # Needs approved designs + PRD
+            "output_required_for": [Phase.MARKETING_SETUP.value]  # Marketing needs completed MVP
         },
         {
             "order": 3,
-            "name": "QA & Testing",
-            "designation": Phase.QA.value,
+            "name": "Marketing & Setup",
+            "designation": Phase.MARKETING_SETUP.value,
             "queue": "agent_execution",
+            "is_deterministic": True,  # Follows system prompt/SOP
             "tasks": [
                 {
-                    "type": "run_qa",
-                    "agent": "qa",
-                    "description": "Run tests and validation"
+                    "type": "setup_email",
+                    "agent": "devops",
+                    "description": "Set up email infrastructure"
+                },
+                {
+                    "type": "setup_analytics",
+                    "agent": "devops",
+                    "description": "Set up analytics tracking"
+                },
+                {
+                    "type": "finalize_finishing_touches",
+                    "agent": "marketer",
+                    "description": "Complete finishing touches and polish"
                 }
             ],
-            "deliverables": ["test_report", "qa_results"]
+            "deliverables": ["email_setup", "analytics_setup", "polished_mvp"],
+            "input_dependencies": ["build_mvp"],  # Needs completed MVP
+            "output_required_for": [Phase.DEPLOYMENT.value]  # Deployment needs these
         },
         {
             "order": 4,
-            "name": "Deployment & Launch",
+            "name": "Deployment & Handoff",
             "designation": Phase.DEPLOYMENT.value,
             "queue": "deployment_tasks",
+            "is_deterministic": True,  # Follows system prompt/SOP
             "tasks": [
                 {
                     "type": "deploy_app",
@@ -111,12 +131,14 @@ class PhaseConfig:
                     "description": "Deploy application to production"
                 },
                 {
-                    "type": "generate_marketing",
-                    "agent": "marketer",
-                    "description": "Generate marketing materials"
+                    "type": "prepare_handoff",
+                    "agent": "devops",
+                    "description": "Prepare project for handoff (documentation, access, etc.)"
                 }
             ],
-            "deliverables": ["deployment_url", "marketing_assets"]
+            "deliverables": ["deployment_url", "handoff_documentation"],
+            "input_dependencies": ["finalize_finishing_touches"],  # Needs marketing setup complete
+            "output_required_for": []  # Final phase
         }
     ]
     
@@ -210,5 +232,21 @@ class PhaseConfig:
         for phase in cls.PHASES:
             if phase["designation"] == phase_designation:
                 return phase["deliverables"]
+        return []
+    
+    @classmethod
+    def is_phase_deterministic(cls, phase_designation: str) -> bool:
+        """Check if a phase is deterministic (follows SOP) or probabilistic (agent creates tasks)."""
+        for phase in cls.PHASES:
+            if phase["designation"] == phase_designation:
+                return phase.get("is_deterministic", True)  # Default to True
+        return True
+    
+    @classmethod
+    def get_phase_input_dependencies(cls, phase_designation: str) -> List[str]:
+        """Get the task types that must be completed before this phase can start."""
+        for phase in cls.PHASES:
+            if phase["designation"] == phase_designation:
+                return phase.get("input_dependencies", [])
         return []
 

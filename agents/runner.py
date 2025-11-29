@@ -198,14 +198,31 @@ async def process_task(task_data: dict):
                 )
                 return
             
-            # Agent succeeded
+            # Agent succeeded - mark task as completed
+            # Note: If task requires approval, orchestrator will handle that
+            task_status = result.get('status', TaskStatus.COMPLETED.value)
+            
             await update_task_status(
                 task_id=task_data['task_id'],
-                status=result.get('status', current_task['status']),
+                status=task_status,
                 result=result,
                 project_id=task_data['project_id'],
                 success_message=result.get('message', 'Agent execution completed')
             )
+            
+            # TODO: Uncomment when Supabase is set up
+            # Call orchestrator to handle task completion and progression
+            # This will:
+            # - Check if task requires approval (if yes, set to pending_approval)
+            # - If no approval needed, mark complete and create next task
+            # - Handle phase completion if needed
+            # from orchestrator.engine import AgentOrchestrator
+            # orchestrator = AgentOrchestrator(supabase, rabbitmq_url=os.getenv("RABBITMQ_URL"))
+            # await orchestrator.handle_task_completion(
+            #     task_id=task_data['task_id'],
+            #     project_id=task_data['project_id'],
+            #     task_type=task_type
+            # )
             
         except ImportError as ie:
             error_message = f"Agent module not found: {module_path}"

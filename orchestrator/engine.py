@@ -169,10 +169,66 @@ class AgentOrchestrator:
             self.logger.error(f"Error verifying task creation: {str(e)}")
             return False, f"Error verifying task creation: {str(e)}"
 
-    async def create_task(self, project_id: str, task_type: str, agent_role: Optional[str] = None) -> Tuple[bool, Optional[str], Optional[str]]:
+    async def create_progress_update(
+        self,
+        project_id: str,
+        message: str,
+        task_id: Optional[str] = None,
+        agent_role: Optional[str] = None,
+        activity_type: str = "progress"
+    ) -> bool:
+        """
+        Create a progress update (status_update) for internal subtasks.
+        
+        This is for visibility only - creates an entry in project_activity table
+        but does NOT create a task or queue anything.
+        
+        Use this when an agent is working through internal steps that don't need
+        separate execution (e.g., "Looking up competitors..." during market research).
+        
+        Args:
+            project_id: The project UUID
+            message: Progress message (e.g., "Looking up competitors...")
+            task_id: Optional parent task ID this progress relates to
+            agent_role: Optional agent role for context
+            activity_type: Type of activity (progress, info, success, error, warning)
+        
+        Returns:
+            bool: True if successful
+        """
+        try:
+            return await self.status_updates.create_activity(
+                project_id=project_id,
+                message=message,
+                agent_role=agent_role,
+                activity_type=activity_type,
+                task_id=task_id
+            )
+        except Exception as e:
+            self.logger.error(f"Error creating progress update: {str(e)}")
+            return False
+
+    async def create_task(
+        self,
+        project_id: str,
+        task_type: str,
+        agent_role: Optional[str] = None,
+        parent_task_id: Optional[str] = None
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Create a new task and queue it for execution.
-        Returns (success, task_id, error_message).
+        
+        This creates a real task that will be executed (either by the same agent
+        or a different agent in a different sandbox).
+        
+        Args:
+            project_id: The project UUID
+            task_type: Type of task (e.g., "implement_auth", "build_dashboard")
+            agent_role: Optional agent role (defaults to config)
+            parent_task_id: Optional parent task ID for task hierarchy
+        
+        Returns:
+            Tuple of (success, task_id, error_message)
         """
         try:
             # Verify task can be created
@@ -182,17 +238,29 @@ class AgentOrchestrator:
 
             # Get agent role from config if not provided
             if not agent_role:
-                agent_role = PhaseConfig.get_agent_for_task(task_type)
+                try:
+                    agent_role = PhaseConfig.get_agent_for_task(task_type)
+                except ValueError:
+                    # Task type not in config - this is okay for agent-created subtasks
+                    # Use a default or require agent_role to be provided
+                    if not agent_role:
+                        agent_role = "developer"  # Default fallback
 
             # Create task
-            task = self.supabase.table('tasks').insert({
+            task_data = {
                 "project_id": project_id,
                 "type": task_type,
                 "status": TaskStatus.PENDING.value,
                 "agent_role": agent_role,
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
-            }).execute()
+            }
+            
+            # Add parent_task_id if provided (for task hierarchy)
+            if parent_task_id:
+                task_data["parent_task_id"] = parent_task_id
+
+            task = self.supabase.table('tasks').insert(task_data).execute()
 
             if not task.data:
                 return False, None, "Failed to create task"
