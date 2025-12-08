@@ -54,7 +54,16 @@ def agent_initialization_task(
             }
         )
         
-        # Task will be saved to database when it completes (not here to avoid duplicates)
+        # Update task status in database to "processing"
+        save_task(
+            task_id=self.request.id,
+            project_id=project_id,
+            queue_name="agent_initialization_queue",
+            task_type="agent_initialization",
+            agent_name=agent_name,
+            context=context,
+            status="processing"
+        )
         
         # Dynamically import the agent module and get its process function
         try:
@@ -133,15 +142,15 @@ def agent_initialization_task(
     except Exception as e:
         logger.error(f"Error in agent initialization task: {str(e)}", exc_info=True)
         
-        # Build error result
-        error_result = {
-            "status": "failed",
-            "project_id": project_id,
+        # Build error result with full error details as context
+        error_details = {
+            "original_task_id": self.request.id,
             "agent_name": agent_name,
-            "context": context,
-            "task_id": self.request.id,
-            "error": str(e),
+            "original_context": context,
+            "error_message": str(e),
+            "error_type": type(e).__name__,
         }
+        error_context = f"Agent '{agent_name}' failed: {str(e)}. Original context: {context[:200]}..."
         
         # Save task status to database (failed)
         save_task(
@@ -155,12 +164,25 @@ def agent_initialization_task(
             error=str(e)
         )
         
-        # Post error result to results queue
+        # Create a new task with error details as context for webhook notification
+        # This task will be acknowledged and removed from queue (handled by Celery)
+        # The new task will send webhook notification with error details
         try:
+            error_result = {
+                "status": "failed",
+                "project_id": project_id,
+                "agent_name": agent_name,
+                "context": error_context,
+                "task_id": self.request.id,
+                "error": str(e),
+                "error_details": error_details,
+            }
+            
+            # Post error result to results queue (this creates a new task)
             result_task = process_agent_result_task.delay(error_result)
-            # Result task will be saved to database when it completes (not here to avoid duplicates)
+            logger.info(f"✅ Error notification task created with ID: {result_task.id} for failed task {self.request.id}")
         except Exception as queue_error:
-            logger.error(f"Failed to post error result to queue: {str(queue_error)}")
+            logger.error(f"❌ Failed to create error notification task: {str(queue_error)}", exc_info=True)
         
         # Update task state to failure
         self.update_state(
@@ -204,7 +226,7 @@ def process_agent_result_task(self, result: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
         
-        # Task will be saved to database when it completes (not here to avoid duplicates)
+        # Save task to database when it completes (includes webhook notification)
         
         status = result.get("status", "unknown")
         project_id = result.get("project_id")
@@ -241,7 +263,14 @@ def process_agent_result_task(self, result: Dict[str, Any]) -> Dict[str, Any]:
             "message": f"Result processed for agent {agent_name}",
         }
         
-        # Save task status to database (completed) with the full result
+        # Build result to save - include both processed summary AND full original result
+        # This preserves all error details (error_details, error_context, etc.)
+        result_to_save = {
+            "processed_summary": processed_result,
+            "original_result": result,  # Preserves all error details, error_details dict, etc.
+        }
+        
+        # Save task status to database (completed) with the full result including error details
         save_task(
             task_id=self.request.id,
             project_id=project_id,
@@ -249,7 +278,7 @@ def process_agent_result_task(self, result: Dict[str, Any]) -> Dict[str, Any]:
             task_type="agent_result_processing",
             agent_name=agent_name,
             status="completed",
-            result=processed_result,
+            result=result_to_save,
             parent_task_id=original_task_id
         )
         
@@ -259,7 +288,14 @@ def process_agent_result_task(self, result: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error processing agent result: {str(e)}", exc_info=True)
         
-        # Save task status to database (failed)
+        # Build error info preserving original result if available
+        error_info = {
+            "processing_error": str(e),
+            "error_type": type(e).__name__,
+            "original_result": result if result else None,  # Preserve original result with error details
+        }
+        
+        # Save task status to database (failed) with full error context
         save_task(
             task_id=self.request.id,
             project_id=result.get("project_id", "unknown") if result else "unknown",
@@ -268,6 +304,7 @@ def process_agent_result_task(self, result: Dict[str, Any]) -> Dict[str, Any]:
             agent_name=result.get("agent_name") if result else None,
             status="failed",
             error=str(e),
+            result=error_info,  # Include full error info including original result
             parent_task_id=original_task_id
         )
         

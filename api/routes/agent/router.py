@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from .models import AgentRequest, FeedbackRequest
 from agents import get_agent, get_all_agents
 from worker.tasks import agent_initialization_task
+from worker.task_storage import save_task
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 async def process_agent(agent: AgentRequest):
     """
     Create an agent initialization task.
-    Posts the task to the agent_initialization_queue and returns task information.
+    Posts the task to the agent_initialization_queue, saves it to the database, and returns task information.
     
     Args:
         agent: Agent request containing project_id, context, and agent_name
@@ -30,7 +31,16 @@ async def process_agent(agent: AgentRequest):
         agent_name=agent.agent_name
     )
     
-    # Task will be saved to database when it completes (not here to avoid duplicates)
+    # Save task to database immediately with "pending" status
+    save_task(
+        task_id=task.id,
+        project_id=agent.project_id,
+        queue_name="agent_initialization_queue",
+        task_type="agent_initialization",
+        agent_name=agent.agent_name,
+        context=agent.context,
+        status="pending"
+    )
     
     return {
         "task_id": task.id,
