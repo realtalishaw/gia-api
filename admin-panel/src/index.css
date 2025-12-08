@@ -9,6 +9,8 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
+  background-color: #000000;
+  color: #ffffff;
 }
 
 body {
@@ -22,10 +24,20 @@ body {
 #root {
   width: 100%;
   height: 100%;
+  background-color: #000000;
 }
 
-h1 {
-  font-size: 2rem;
-  color: #333;
+h1, h2, h3, h4, h5, h6 {
+  color: #ffffff;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+
+button:hover {
+  opacity: 0.8;
+}
+
+button:active {
+  opacity: 0.6;
 }
 

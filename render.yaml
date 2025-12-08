@@ -39,6 +39,28 @@ services:
       # - key: SUPABASE_KEY
       #   sync: false
 
+  # Flower Monitoring Service
+  - type: web
+    name: gia-flower
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # For production, use Basic Auth or OAuth (see worker/README.md)
+    # Example with Basic Auth:
+    # startCommand: celery -A worker.celery_app flower --port=$PORT --address=0.0.0.0 --basic-auth=admin:$FLOWER_PASSWORD
+    # For local dev only (NOT for production):
+    startCommand: celery -A worker.celery_app flower --port=$PORT --address=0.0.0.0 --unauthenticated_api
+    rootDir: api
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # Add your environment variables here
+      # - key: CLOUDAMQP_URL
+      #   sync: false
+      # - key: FLOWER_PASSWORD
+      #   sync: false  # For Basic Auth, set a secure password
+
   # Admin Panel Service
   - type: web
     name: gia-admin-panel
@@ -56,4 +78,6 @@ services:
       # - key: VITE_SUPABASE_URL
       #   sync: false
       # - key: VITE_SUPABASE_ANON_KEY
+      #   sync: false
+      # - key: VITE_FLOWER_URL
       #   sync: false

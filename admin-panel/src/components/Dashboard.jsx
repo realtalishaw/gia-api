@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { useState, useEffect } from 'react'
+import FlowerMonitoring from './FlowerMonitoring'
 
 export default function Dashboard() {
   const [user, setUser] = useState(null)
@@ -28,19 +29,26 @@ export default function Dashboard() {
   }
 
   if (loading) {
-    return <div style={styles.container}>Loading...</div>
+    return (
+      <div style={styles.loadingContainer}>
+        <div style={styles.loadingText}>Loading...</div>
+      </div>
+    )
   }
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1>Hello, World!</h1>
+        <h1 style={styles.title}>Admin Panel</h1>
         <div style={styles.userInfo}>
-          <span>Logged in as: {user?.email}</span>
+          <span style={styles.userEmail}>{user?.email}</span>
           <button onClick={handleLogout} style={styles.logoutButton}>
             Logout
           </button>
         </div>
+      </div>
+      <div style={styles.content}>
+        <FlowerMonitoring />
       </div>
     </div>
   )
@@ -48,28 +56,68 @@ export default function Dashboard() {
 
 const styles = {
   container: {
-    padding: '2rem',
-    maxWidth: '1200px',
-    margin: '0 auto',
+    width: '100%',
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: '#000000',
+    color: '#ffffff',
+  },
+  loadingContainer: {
+    width: '100%',
+    height: '100vh',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+    color: '#ffffff',
+  },
+  loadingText: {
+    fontSize: '1rem',
+    fontWeight: 400,
+    letterSpacing: '0.05em',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '2rem',
+    padding: '1.5rem 2rem',
+    borderBottom: '1px solid #333333',
+    backgroundColor: '#000000',
+  },
+  title: {
+    fontSize: '1.5rem',
+    fontWeight: 400,
+    color: '#ffffff',
+    margin: 0,
+    letterSpacing: '0.05em',
   },
   userInfo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '1rem',
+    gap: '1.5rem',
+  },
+  userEmail: {
+    fontSize: '0.875rem',
+    color: '#cccccc',
+    letterSpacing: '0.05em',
   },
   logoutButton: {
-    padding: '0.5rem 1rem',
-    backgroundColor: '#dc3545',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
+    padding: '0.75rem 1.5rem',
+    backgroundColor: 'transparent',
+    color: '#ffffff',
+    border: '1px solid #333333',
     cursor: 'pointer',
+    fontSize: '0.875rem',
+    fontWeight: 400,
+    letterSpacing: '0.05em',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+  },
+  content: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: '#000000',
   },
 }
 
