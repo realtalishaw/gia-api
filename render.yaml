@@ -24,7 +24,7 @@ services:
     name: gia-task-worker
     env: python
     region: oregon
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue
     rootDir: api
