@@ -1,0 +1,31 @@
+services:
+  # API Service
+  - type: web
+    name: gia-api
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: api
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # Add your environment variables here
+      # - key: SUPABASE_URL
+      #   sync: false
+      # - key: SUPABASE_KEY
+      #   sync: false
+
+  # Admin Panel Service
+  - type: web
+    name: gia-admin-panel
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npx serve -s dist -l $PORT
+    rootDir: admin-panel
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.0
