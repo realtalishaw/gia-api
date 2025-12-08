@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from .models import AgentRequest, FeedbackRequest
 from agents import get_agent, get_all_agents
+from worker.tasks import agent_initialization_task
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -8,20 +9,33 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 @router.post("")
 async def process_agent(agent: AgentRequest):
     """
-    Process an agent request with project ID, context, and agent name.
-    Returns the agent definition for the requested agent.
+    Create an agent initialization task.
+    Posts the task to the agent_initialization_queue and returns task information.
     
     Args:
         agent: Agent request containing project_id, context, and agent_name
         
     Returns:
-        Agent definition
+        Dictionary with task_id, queue_name, status, and message
     """
+    # Validate agent exists
     agent_definition = get_agent(agent.agent_name)
     if not agent_definition:
         raise HTTPException(status_code=404, detail=f"Agent '{agent.agent_name}' not found")
     
-    return agent_definition.model_dump()
+    # Create Celery task
+    task = agent_initialization_task.delay(
+        project_id=agent.project_id,
+        context=agent.context,
+        agent_name=agent.agent_name
+    )
+    
+    return {
+        "task_id": task.id,
+        "queue_name": "agent_initialization_queue",
+        "status": "pending",
+        "message": f"Agent initialization task created for {agent.agent_name}"
+    }
 
 
 @router.get("s")

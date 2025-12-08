@@ -16,6 +16,28 @@ services:
       #   sync: false
       # - key: SUPABASE_KEY
       #   sync: false
+      # - key: CLOUDAMQP_URL
+      #   sync: false
+
+  # Task Worker Service
+  - type: worker
+    name: gia-task-worker
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue
+    rootDir: api
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # Add your environment variables here
+      # - key: CLOUDAMQP_URL
+      #   sync: false
+      # - key: SUPABASE_URL
+      #   sync: false
+      # - key: SUPABASE_KEY
+      #   sync: false
 
   # Admin Panel Service
   - type: web
