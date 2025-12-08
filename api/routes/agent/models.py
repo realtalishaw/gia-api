@@ -3,8 +3,9 @@ from typing import Optional
 
 
 class AgentRequest(BaseModel):
-    name: str
-    description: Optional[str] = None
+    project_id: str
+    context: str
+    agent_name: str
 
 
 class AgentResponse(BaseModel):

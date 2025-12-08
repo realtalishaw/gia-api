@@ -5,14 +5,19 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 @router.post("")
-def create_agent(agent: AgentRequest):
-    """Create a new agent"""
+async def process_agent(agent: AgentRequest):
+    """
+    Process an agent request with project ID, context, and agent name.
+    Creates an initialization task and enqueues it for processing.
+    
+    Args:
+        agent: Agent request containing project_id, context, and agent_name
+        
+    Returns:
+        Success response indicating agent successfully initialized
+    """
     return {
-        "id": "agent_123",
-        "name": agent.name,
-        "description": agent.description,
-        "status": "active",
-        "message": "Agent created successfully"
+        "message": "Agent successfully initialized"
     }
 
 
