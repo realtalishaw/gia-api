@@ -1,6 +1,7 @@
 """
 Task storage utility for saving Celery task information to Supabase.
-Provides redundancy by storing task metadata in the database.
+Each task is saved as a separate record for complete history and redundancy.
+Also sends webhook notifications when tasks are saved.
 """
 import os
 import logging
@@ -53,24 +54,29 @@ def save_task(
     task_id: str,
     project_id: str,
     queue_name: str,
+    task_type: str = "agent_initialization",
     agent_name: Optional[str] = None,
     context: Optional[str] = None,
     status: str = "pending",
     result: Optional[Dict[str, Any]] = None,
     error: Optional[str] = None,
+    parent_task_id: Optional[str] = None,
 ) -> bool:
     """
-    Save or update task information in Supabase.
+    Save a new task record to Supabase.
+    Each task is saved as a separate record for complete history.
     
     Args:
-        task_id: Celery task ID (unique identifier)
+        task_id: Celery task ID (unique identifier for this task instance)
         project_id: Project ID associated with the task
         queue_name: Name of the queue the task is in
+        task_type: Type of task ('agent_initialization' or 'agent_result_processing')
         agent_name: Name of the agent (if applicable)
         context: Task context/input data
         status: Task status (pending, processing, completed, failed)
         result: Task result data (for completed tasks)
         error: Error message (for failed tasks)
+        parent_task_id: ID of the parent task (for result processing tasks)
         
     Returns:
         True if saved successfully, False otherwise
@@ -81,13 +87,13 @@ def save_task(
         return False
     
     try:
-        # Prepare data for insert/update
+        # Prepare data for insert
         data = {
             "task_id": task_id,
             "project_id": project_id,
             "queue_name": queue_name,
+            "task_type": task_type,
             "status": status,
-            "updated_at": datetime.utcnow().isoformat(),
         }
         
         # Add optional fields
@@ -99,92 +105,50 @@ def save_task(
             data["result"] = result
         if error:
             data["error"] = error
-        
-        # Set timestamps based on status
-        if status == "processing" and not data.get("started_at"):
-            data["started_at"] = datetime.utcnow().isoformat()
-        elif status in ("completed", "failed") and not data.get("completed_at"):
-            data["completed_at"] = datetime.utcnow().isoformat()
-        
-        # Check if task exists first
-        existing = client.table("tasks").select("task_id").eq("task_id", task_id).execute()
-        
-        if existing.data and len(existing.data) > 0:
-            # Task exists - update it
-            response = client.table("tasks").update(data).eq("task_id", task_id).execute()
-        else:
-            # Task doesn't exist - insert it
-            # Don't set updated_at on initial insert (let database default handle it)
-            insert_data = data.copy()
-            if "updated_at" in insert_data:
-                del insert_data["updated_at"]
-            response = client.table("tasks").insert(insert_data).execute()
-        
-        logger.debug(f"Task storage: Saved task {task_id} to database (status: {status})")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Task storage: Failed to save task {task_id} to database: {e}", exc_info=True)
-        return False
-
-
-def update_task_status(
-    task_id: str,
-    status: str,
-    result: Optional[Dict[str, Any]] = None,
-    error: Optional[str] = None,
-    meta: Optional[Dict[str, Any]] = None,
-) -> bool:
-    """
-    Update task status in the database.
-    
-    Args:
-        task_id: Celery task ID
-        status: New status (pending, processing, completed, failed)
-        result: Task result data (for completed tasks)
-        error: Error message (for failed tasks)
-        meta: Additional metadata to store
-        
-    Returns:
-        True if updated successfully, False otherwise
-    """
-    client = _init_supabase()
-    if not client:
-        logger.debug("Task storage: Supabase not configured, skipping update")
-        return False
-    
-    try:
-        update_data = {
-            "status": status,
-            "updated_at": datetime.utcnow().isoformat(),
-        }
+        if parent_task_id:
+            data["parent_task_id"] = parent_task_id
         
         # Set timestamps based on status
         if status == "processing":
-            update_data["started_at"] = datetime.utcnow().isoformat()
+            data["started_at"] = datetime.utcnow().isoformat()
         elif status in ("completed", "failed"):
-            update_data["completed_at"] = datetime.utcnow().isoformat()
+            data["completed_at"] = datetime.utcnow().isoformat()
         
-        # Add optional fields
-        if result:
-            update_data["result"] = result
-        if error:
-            update_data["error"] = error
-        if meta:
-            # Merge meta into result or store separately
-            if "result" in update_data:
-                if isinstance(update_data["result"], dict):
-                    update_data["result"].update(meta)
+        # Always insert a new record (no checking for existing)
+        response = client.table("tasks").insert(data).execute()
+        
+        if response.data and len(response.data) > 0:
+            logger.info(f"Task storage: ✅ Saved task {task_id} ({task_type}) to database with status: {status}")
+            
+            # Send webhook notification after successful save
+            logger.info(f"Task storage: Attempting to send webhook for task {task_id}")
+            try:
+                from worker.webhook_client import send_task_created_webhook
+                webhook_sent = send_task_created_webhook(
+                    task_id=task_id,
+                    project_id=project_id,
+                    queue_name=queue_name,
+                    task_type=task_type,
+                    status=status,
+                    agent_name=agent_name,
+                    context=context,
+                    parent_task_id=parent_task_id,
+                    result=result,
+                    error=error,
+                )
+                if webhook_sent:
+                    logger.info(f"Task storage: ✅ Webhook sent successfully for task {task_id}")
                 else:
-                    update_data["result"] = {"data": update_data["result"], **meta}
-            else:
-                update_data["result"] = meta
-        
-        response = client.table("tasks").update(update_data).eq("task_id", task_id).execute()
-        
-        logger.debug(f"Task storage: Updated task {task_id} status to {status}")
-        return True
+                    logger.info(f"Task storage: ⚠️ Webhook not sent for task {task_id} (not configured or failed)")
+            except Exception as webhook_error:
+                # Don't fail the task save if webhook fails - just log it
+                logger.warning(f"Task storage: ❌ Exception sending webhook for task {task_id}: {webhook_error}", exc_info=True)
+            
+            return True
+        else:
+            logger.warning(f"Task storage: ⚠️ Insert returned no data for task {task_id}")
+            return False
         
     except Exception as e:
-        logger.error(f"Task storage: Failed to update task {task_id} status: {e}", exc_info=True)
+        logger.error(f"Task storage: ❌ Failed to save task {task_id} to database: {e}", exc_info=True)
         return False
