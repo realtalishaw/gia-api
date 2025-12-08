@@ -2,6 +2,7 @@
 Celery tasks for agent processing.
 """
 from worker.celery_app import celery_app
+from worker.task_storage import save_task, update_task_status
 from typing import Dict, Any
 import logging
 import importlib
@@ -53,6 +54,17 @@ def agent_initialization_task(
             }
         )
         
+        # Update task status in database
+        update_task_status(
+            task_id=self.request.id,
+            status="processing",
+            meta={
+                "project_id": project_id,
+                "agent_name": agent_name,
+                "message": f"Processing agent {agent_name} for project {project_id}",
+            }
+        )
+        
         # Dynamically import the agent module and get its process function
         try:
             agent_module = importlib.import_module(f"agents.{agent_name}")
@@ -91,11 +103,27 @@ def agent_initialization_task(
             
             logger.info(f"Agent {agent_name} processing completed successfully. Result: {result}")
             
+            # Update task status in database to completed
+            update_task_status(
+                task_id=self.request.id,
+                status="completed",
+                result=result
+            )
+            
             # Post result to results queue for further processing
             logger.info(f"Posting result to agent_results_queue for task {self.request.id}")
             try:
                 result_task = process_agent_result_task.delay(result)
                 logger.info(f"✅ Result task created successfully with ID: {result_task.id}")
+                
+                # Save result task to database
+                save_task(
+                    task_id=result_task.id,
+                    project_id=project_id,
+                    queue_name="agent_results_queue",
+                    agent_name=agent_name,
+                    status="pending"
+                )
             except Exception as queue_error:
                 logger.error(f"❌ Failed to post result to queue: {str(queue_error)}", exc_info=True)
                 # Don't fail the main task if result posting fails
@@ -126,9 +154,24 @@ def agent_initialization_task(
             "error": str(e),
         }
         
+        # Update task status in database to failed
+        update_task_status(
+            task_id=self.request.id,
+            status="failed",
+            error=str(e)
+        )
+        
         # Post error result to results queue
         try:
-            process_agent_result_task.delay(error_result)
+            result_task = process_agent_result_task.delay(error_result)
+            # Save result task to database
+            save_task(
+                task_id=result_task.id,
+                project_id=project_id,
+                queue_name="agent_results_queue",
+                agent_name=agent_name,
+                status="pending"
+            )
         except Exception as queue_error:
             logger.error(f"Failed to post error result to queue: {str(queue_error)}")
         
@@ -172,6 +215,16 @@ def process_agent_result_task(self, result: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
         
+        # Update task status in database
+        update_task_status(
+            task_id=self.request.id,
+            status="processing",
+            meta={
+                "original_task_id": result.get("task_id"),
+                "agent_name": result.get("agent_name"),
+            }
+        )
+        
         status = result.get("status", "unknown")
         project_id = result.get("project_id")
         agent_name = result.get("agent_name")
@@ -206,11 +259,26 @@ def process_agent_result_task(self, result: Dict[str, Any]) -> Dict[str, Any]:
             "message": f"Result processed for agent {agent_name}",
         }
         
+        # Update task status in database to completed
+        update_task_status(
+            task_id=self.request.id,
+            status="completed",
+            result=processed_result
+        )
+        
         logger.info(f"Agent result processing completed: {processed_result}")
         return processed_result
         
     except Exception as e:
         logger.error(f"Error processing agent result: {str(e)}", exc_info=True)
+        
+        # Update task status in database to failed
+        update_task_status(
+            task_id=self.request.id,
+            status="failed",
+            error=str(e)
+        )
+        
         # Update task state to failure
         self.update_state(
             state="FAILURE",
