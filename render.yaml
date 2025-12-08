@@ -29,3 +29,9 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 18.17.0
+      # Add your Supabase environment variables here (required for build)
+      # Vite environment variables must be prefixed with VITE_
+      # - key: VITE_SUPABASE_URL
+      #   sync: false
+      # - key: VITE_SUPABASE_ANON_KEY
+      #   sync: false
