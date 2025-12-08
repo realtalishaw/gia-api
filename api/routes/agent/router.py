@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from .models import AgentRequest, FeedbackRequest
+from agents import get_agent, get_all_agents
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -8,38 +9,30 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 async def process_agent(agent: AgentRequest):
     """
     Process an agent request with project ID, context, and agent name.
-    Creates an initialization task and enqueues it for processing.
+    Returns the agent definition for the requested agent.
     
     Args:
         agent: Agent request containing project_id, context, and agent_name
         
     Returns:
-        Success response indicating agent successfully initialized
+        Agent definition
     """
-    return {
-        "message": "Agent successfully initialized"
-    }
+    agent_definition = get_agent(agent.agent_name)
+    if not agent_definition:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent.agent_name}' not found")
+    
+    return agent_definition.model_dump()
 
 
 @router.get("s")
 def get_agents():
-    """Get all agents"""
+    """Get all agents - returns list of agent names and total count"""
+    all_agents = get_all_agents()
+    agent_names = [agent.name for agent in all_agents]
+    
     return {
-        "agents": [
-            {
-                "id": "agent_123",
-                "name": "Example Agent",
-                "description": "An example agent",
-                "status": "active"
-            },
-            {
-                "id": "agent_456",
-                "name": "Another Agent",
-                "description": "Another example agent",
-                "status": "inactive"
-            }
-        ],
-        "total": 2
+        "agents": agent_names,
+        "total": len(agent_names)
     }
 
 
