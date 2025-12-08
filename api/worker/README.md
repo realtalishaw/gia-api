@@ -12,15 +12,20 @@ This directory contains the Celery task worker for managing background tasks.
 
 1. **CloudAMQP Configuration**: Set the `CLOUDAMQP_URL` or `RABBITMQ_URL` environment variable with your CloudAMQP connection string.
 
-2. **Running the Worker Locally**:
+2. **Running the Worker Locally** (with all queues):
    ```bash
    cd api
-   celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue
+   celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue,agent_results_queue
    ```
 
-3. **Running with Multiple Queues**:
+3. **Running with Single Queue** (for testing):
    ```bash
-   celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue,other_queue
+   celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue
+   ```
+   
+   Or for results processing only:
+   ```bash
+   celery -A worker.celery_app worker --loglevel=info --queues=agent_results_queue
    ```
 
 4. **Running Flower Monitoring Locally**:
@@ -49,10 +54,12 @@ This directory contains the Celery task worker for managing background tasks.
 ## Queues
 
 - `agent_initialization_queue` - Handles agent initialization tasks
+- `agent_results_queue` - Handles completed agent results for further processing (storage, webhooks, etc.)
 
 ## Tasks
 
-- `agent_initialization_task` - Initializes an agent with the given project ID, context, and agent name.
+- `agent_initialization_task` - Initializes an agent and executes its `process()` function. Posts results to `agent_results_queue` when complete.
+- `process_agent_result_task` - Processes completed agent results (can be extended to store in database, send webhooks, trigger workflows, etc.)
 
 ## Environment Variables
 
@@ -71,7 +78,7 @@ For local development, you'll typically need to run three services:
 2. **Celery Worker** (in another terminal):
    ```bash
    cd api
-   celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue
+   celery -A worker.celery_app worker --loglevel=info --queues=agent_initialization_queue,agent_results_queue
    ```
 
 3. **Flower Monitoring** (in a third terminal, optional):

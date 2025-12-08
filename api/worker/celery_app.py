@@ -43,6 +43,7 @@ celery_app.conf.update(
 # Define queues
 celery_app.conf.task_routes = {
     "worker.tasks.agent_initialization": {"queue": "agent_initialization_queue"},
+    "worker.tasks.process_agent_result": {"queue": "agent_results_queue"},
 }
 
 # Auto-discover tasks

@@ -151,3 +151,51 @@ async def get_queues():
             
     except httpx.RequestError as e:
         raise HTTPException(status_code=503, detail=f"Failed to connect to Flower: {str(e)}")
+
+
+@router.get("/tasks/{task_id}")
+async def get_task_details(task_id: str):
+    """Proxy endpoint to fetch detailed task information from Flower API"""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{FLOWER_URL}/api/task/info/{task_id}")
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Flower API returned {response.status_code}"
+                )
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=503, detail=f"Failed to connect to Flower: {str(e)}")
+
+
+@router.get("/tasks/{task_id}/result")
+async def get_task_result(task_id: str):
+    """Get task result directly from Celery (bypasses Flower)"""
+    try:
+        from worker.celery_app import celery_app
+        from celery.result import AsyncResult
+        
+        result = AsyncResult(task_id, app=celery_app)
+        
+        if result.ready():
+            return {
+                "task_id": task_id,
+                "state": result.state,
+                "result": result.result,
+                "successful": result.successful(),
+                "failed": result.failed(),
+            }
+        else:
+            return {
+                "task_id": task_id,
+                "state": result.state,
+                "result": None,
+                "ready": False,
+                "message": "Task is still pending or in progress",
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting task result: {str(e)}")

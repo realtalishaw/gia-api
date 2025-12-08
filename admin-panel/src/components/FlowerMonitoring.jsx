@@ -8,6 +8,9 @@ export default function FlowerMonitoring() {
   const [workers, setWorkers] = useState([])
   const [tasks, setTasks] = useState([])
   const [queues, setQueues] = useState([])
+  const [selectedTask, setSelectedTask] = useState(null)
+  const [taskDetails, setTaskDetails] = useState(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
   
   // Get API URL from environment variable, fallback to localhost for development
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -98,6 +101,43 @@ export default function FlowerMonitoring() {
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return 'N/A'
     return new Date(timestamp * 1000).toLocaleString()
+  }
+  
+  const fetchTaskDetails = async (taskId) => {
+    if (!taskId) return
+    setLoadingDetails(true)
+    try {
+      const response = await fetch(`${apiUrl}/api/monitoring/tasks/${taskId}`, {
+        method: 'GET',
+        mode: 'cors',
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setTaskDetails(data)
+        setSelectedTask(taskId)
+      } else {
+        console.error('Failed to fetch task details')
+        setTaskDetails(null)
+      }
+    } catch (error) {
+      console.error('Error fetching task details:', error)
+      setTaskDetails(null)
+    } finally {
+      setLoadingDetails(false)
+    }
+  }
+  
+  const closeTaskDetails = () => {
+    setSelectedTask(null)
+    setTaskDetails(null)
+  }
+  
+  const formatTaskData = (data) => {
+    if (!data) return 'N/A'
+    if (typeof data === 'object') {
+      return JSON.stringify(data, null, 2)
+    }
+    return String(data)
   }
   
   return (
@@ -240,7 +280,25 @@ export default function FlowerMonitoring() {
                       </tr>
                     ) : (
                       tasks.map((task, idx) => (
-                        <tr key={idx}>
+                        <tr 
+                          key={idx}
+                          onClick={() => fetchTaskDetails(task.uuid)}
+                          style={{
+                            ...styles.td,
+                            cursor: 'pointer',
+                            backgroundColor: selectedTask === task.uuid ? '#1a1a1a' : 'transparent',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (selectedTask !== task.uuid) {
+                              e.currentTarget.style.backgroundColor = '#0a0a0a'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (selectedTask !== task.uuid) {
+                              e.currentTarget.style.backgroundColor = 'transparent'
+                            }
+                          }}
+                        >
                           <td style={styles.td}>{task.name || 'N/A'}</td>
                           <td style={styles.td}>
                             <span style={styles.uuid}>{task.uuid?.substring(0, 8) || 'N/A'}...</span>
@@ -298,6 +356,95 @@ export default function FlowerMonitoring() {
           </>
         )}
       </div>
+      
+      {/* Task Details Modal */}
+      {selectedTask && (
+        <div style={styles.modalOverlay} onClick={closeTaskDetails}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <h3 style={styles.modalTitle}>Task Details</h3>
+              <button style={styles.closeButton} onClick={closeTaskDetails}>×</button>
+            </div>
+            <div style={styles.modalBody}>
+              {loadingDetails ? (
+                <div style={styles.loadingText}>Loading task details...</div>
+              ) : taskDetails ? (
+                <div style={styles.detailsContainer}>
+                  <div style={styles.detailSection}>
+                    <h4 style={styles.detailLabel}>Task ID</h4>
+                    <div style={styles.detailValue}>{taskDetails.uuid || selectedTask}</div>
+                  </div>
+                  <div style={styles.detailSection}>
+                    <h4 style={styles.detailLabel}>Name</h4>
+                    <div style={styles.detailValue}>{taskDetails.name || 'N/A'}</div>
+                  </div>
+                  <div style={styles.detailSection}>
+                    <h4 style={styles.detailLabel}>State</h4>
+                    <div style={styles.detailValue}>
+                      <span style={{
+                        ...styles.badge,
+                        backgroundColor: getStateColor(taskDetails.state)
+                      }}>
+                        {taskDetails.state || 'UNKNOWN'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={styles.detailSection}>
+                    <h4 style={styles.detailLabel}>Received</h4>
+                    <div style={styles.detailValue}>{formatTimestamp(taskDetails.received)}</div>
+                  </div>
+                  <div style={styles.detailSection}>
+                    <h4 style={styles.detailLabel}>Started</h4>
+                    <div style={styles.detailValue}>{formatTimestamp(taskDetails.started)}</div>
+                  </div>
+                  <div style={styles.detailSection}>
+                    <h4 style={styles.detailLabel}>Succeeded</h4>
+                    <div style={styles.detailValue}>{formatTimestamp(taskDetails.succeeded)}</div>
+                  </div>
+                  <div style={styles.detailSection}>
+                    <h4 style={styles.detailLabel}>Runtime</h4>
+                    <div style={styles.detailValue}>
+                      {taskDetails.runtime ? `${(taskDetails.runtime).toFixed(2)}s` : 'N/A'}
+                    </div>
+                  </div>
+                  {taskDetails.args && (
+                    <div style={styles.detailSection}>
+                      <h4 style={styles.detailLabel}>Arguments</h4>
+                      <pre style={styles.codeBlock}>{formatTaskData(taskDetails.args)}</pre>
+                    </div>
+                  )}
+                  {taskDetails.kwargs && Object.keys(taskDetails.kwargs).length > 0 && (
+                    <div style={styles.detailSection}>
+                      <h4 style={styles.detailLabel}>Keyword Arguments</h4>
+                      <pre style={styles.codeBlock}>{formatTaskData(taskDetails.kwargs)}</pre>
+                    </div>
+                  )}
+                  {taskDetails.result && (
+                    <div style={styles.detailSection}>
+                      <h4 style={styles.detailLabel}>Result</h4>
+                      <pre style={styles.codeBlock}>{formatTaskData(taskDetails.result)}</pre>
+                    </div>
+                  )}
+                  {taskDetails.traceback && (
+                    <div style={styles.detailSection}>
+                      <h4 style={styles.detailLabel}>Traceback</h4>
+                      <pre style={styles.codeBlock}>{taskDetails.traceback}</pre>
+                    </div>
+                  )}
+                  {taskDetails.worker && (
+                    <div style={styles.detailSection}>
+                      <h4 style={styles.detailLabel}>Worker</h4>
+                      <div style={styles.detailValue}>{taskDetails.worker}</div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={styles.errorText}>Failed to load task details</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -451,5 +598,94 @@ const styles = {
     fontFamily: 'monospace',
     fontSize: '0.875rem',
     color: '#ffffff',
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    backgroundColor: '#1a1a1a',
+    border: '1px solid #333333',
+    borderRadius: '8px',
+    width: '90%',
+    maxWidth: '800px',
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column',
+    color: '#ffffff',
+  },
+  modalHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '1.5rem',
+    borderBottom: '1px solid #333333',
+  },
+  modalTitle: {
+    fontSize: '1.25rem',
+    fontWeight: 400,
+    margin: 0,
+    letterSpacing: '0.05em',
+  },
+  closeButton: {
+    background: 'transparent',
+    border: 'none',
+    color: '#ffffff',
+    fontSize: '2rem',
+    cursor: 'pointer',
+    padding: '0',
+    width: '2rem',
+    height: '2rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    lineHeight: '1',
+  },
+  modalBody: {
+    padding: '1.5rem',
+    overflowY: 'auto',
+    flex: 1,
+  },
+  detailsContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '1.5rem',
+  },
+  detailSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.5rem',
+  },
+  detailLabel: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    color: '#cccccc',
+    margin: 0,
+    letterSpacing: '0.05em',
+  },
+  detailValue: {
+    fontSize: '0.875rem',
+    color: '#ffffff',
+    letterSpacing: '0.05em',
+  },
+  codeBlock: {
+    backgroundColor: '#000000',
+    padding: '1rem',
+    borderRadius: '4px',
+    fontFamily: 'monospace',
+    fontSize: '0.75rem',
+    color: '#ffffff',
+    overflowX: 'auto',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    border: '1px solid #333333',
   },
 }
