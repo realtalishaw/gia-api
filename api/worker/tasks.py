@@ -3,6 +3,7 @@ Celery tasks for agent processing.
 """
 from worker.celery_app import celery_app
 from worker.task_storage import save_task
+from worker.session_manager import get_session_manager
 from typing import Dict, Any
 import logging
 import importlib
@@ -37,6 +38,15 @@ def agent_initialization_task(
     Returns:
         Dictionary with task result information
     """
+    # CRITICAL: Log immediately when task starts - this confirms the task is being executed
+    logger.info("=" * 80)
+    logger.info(f"🚀 TASK STARTED: agent_initialization_task")
+    logger.info(f"   Task ID: {self.request.id}")
+    logger.info(f"   Project ID: {project_id}")
+    logger.info(f"   Agent Name: {agent_name}")
+    logger.info(f"   Context Length: {len(context) if context else 0}")
+    logger.info("=" * 80)
+    
     try:
         logger.info(
             f"Starting agent initialization task: project_id={project_id}, "
@@ -55,15 +65,34 @@ def agent_initialization_task(
         )
         
         # Update task status in database to "processing"
-        save_task(
-            task_id=self.request.id,
-            project_id=project_id,
-            queue_name="agent_initialization_queue",
-            task_type="agent_initialization",
-            agent_name=agent_name,
-            context=context,
-            status="processing"
+        logger.info(f"Saving processing task status to database for task {self.request.id}")
+        try:
+            save_success = save_task(
+                task_id=self.request.id,
+                project_id=project_id,
+                queue_name="agent_initialization_queue",
+                task_type="agent_initialization",
+                agent_name=agent_name,
+                context=context,
+                status="processing"
+            )
+            if not save_success:
+                logger.error(f"❌ Failed to save processing task status to database for task {self.request.id}")
+            else:
+                logger.info(f"✅ Successfully saved processing task status to database for task {self.request.id}")
+        except Exception as save_error:
+            logger.error(f"❌ Exception saving processing task status to database for task {self.request.id}: {save_error}", exc_info=True)
+        
+        # Update session status to "executing" (session was already created in router)
+        # Note: Routing was already done in the API router, so we just update session status here
+        logger.info(f"🔄 Updating session status to 'executing' for task {self.request.id}")
+        session_manager = get_session_manager()
+        session_key = f"{project_id}:{agent_name}:{self.request.id}"
+        session_manager.update_session_status(
+            session_key,
+            status="executing"
         )
+        logger.info(f"✅ Session status updated to 'executing'")
         
         # Dynamically import the agent module and get its process function
         try:
@@ -104,16 +133,24 @@ def agent_initialization_task(
             logger.info(f"Agent {agent_name} processing completed successfully. Result: {result}")
             
             # Save task status to database (completed)
-            save_task(
-                task_id=self.request.id,
-                project_id=project_id,
-                queue_name="agent_initialization_queue",
-                task_type="agent_initialization",
-                agent_name=agent_name,
-                context=context,
-                status="completed",
-                result=result
-            )
+            logger.info(f"Saving completed task status to database for task {self.request.id}")
+            try:
+                save_success = save_task(
+                    task_id=self.request.id,
+                    project_id=project_id,
+                    queue_name="agent_initialization_queue",
+                    task_type="agent_initialization",
+                    agent_name=agent_name,
+                    context=context,
+                    status="completed",
+                    result=result
+                )
+                if not save_success:
+                    logger.error(f"❌ Failed to save completed task status to database for task {self.request.id}")
+                else:
+                    logger.info(f"✅ Successfully saved completed task status to database for task {self.request.id}")
+            except Exception as save_error:
+                logger.error(f"❌ Exception saving completed task status to database for task {self.request.id}: {save_error}", exc_info=True)
             
             # Post result to results queue for further processing
             logger.info(f"Posting result to agent_results_queue for task {self.request.id}")
@@ -128,6 +165,14 @@ def agent_initialization_task(
                 # The result is still returned successfully
             
             logger.info(f"✅ Agent initialization task {self.request.id} completed and result posted to queue")
+            
+            # Update session status to completed
+            session_key = f"{project_id}:{agent_name}:{self.request.id}"
+            session_manager.update_session_status(
+                session_key,
+                status="completed"
+            )
+            
             return result
             
         except ImportError as e:

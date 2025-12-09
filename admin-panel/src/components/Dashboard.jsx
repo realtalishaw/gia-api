@@ -1,10 +1,12 @@
 import { supabase } from '../lib/supabase'
 import { useState, useEffect } from 'react'
 import FlowerMonitoring from './FlowerMonitoring'
+import AgentSessions from './AgentSessions'
 
 export default function Dashboard() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('sessions')
 
   useEffect(() => {
     // Get initial session
@@ -48,7 +50,31 @@ export default function Dashboard() {
         </div>
       </div>
       <div style={styles.content}>
-        <FlowerMonitoring />
+        <div style={styles.tabs}>
+          <div style={styles.tabContainer}>
+            <button
+              onClick={() => setActiveTab('sessions')}
+              style={{
+                ...styles.tab,
+                ...(activeTab === 'sessions' ? styles.tabActive : {}),
+              }}
+            >
+              Agent Sessions
+            </button>
+            <button
+              onClick={() => setActiveTab('flower')}
+              style={{
+                ...styles.tab,
+                ...(activeTab === 'flower' ? styles.tabActive : {}),
+              }}
+            >
+              Flower Monitoring
+            </button>
+          </div>
+        </div>
+        <div style={styles.tabContent}>
+          {activeTab === 'sessions' ? <AgentSessions /> : <FlowerMonitoring />}
+        </div>
       </div>
     </div>
   )
@@ -118,6 +144,38 @@ const styles = {
     flex: 1,
     overflow: 'hidden',
     backgroundColor: '#000000',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  tabs: {
+    borderBottom: '1px solid #333333',
+    backgroundColor: '#000000',
+  },
+  tabContainer: {
+    display: 'flex',
+    gap: '0.5rem',
+    padding: '0 2rem',
+  },
+  tab: {
+    padding: '1rem 1.5rem',
+    backgroundColor: 'transparent',
+    color: '#cccccc',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    cursor: 'pointer',
+    fontSize: '0.875rem',
+    fontWeight: 400,
+    letterSpacing: '0.05em',
+    transition: 'all 0.2s ease',
+    outline: 'none',
+  },
+  tabActive: {
+    color: '#ffffff',
+    borderBottomColor: '#4A90E2',
+  },
+  tabContent: {
+    flex: 1,
+    overflow: 'hidden',
   },
 }
 
