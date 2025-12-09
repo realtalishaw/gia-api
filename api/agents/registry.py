@@ -183,6 +183,9 @@ class AgentRegistry:
             "requirements": agent.requirements,
             "artifacts": agent.artifacts,
             "requires_approval": agent.requires_approval,
+            "execution_type": agent.execution_type,
+            "s3_bucket_path": agent.s3_bucket_path,
+            "fly_machine_id": agent.fly_machine_id,
         }
         
         try:
@@ -204,7 +207,10 @@ class AgentRegistry:
                     existing_data.get("goal") != agent.goal or
                     existing_requirements != agent.requirements or
                     existing_artifacts != agent.artifacts or
-                    existing_data.get("requires_approval") != agent.requires_approval
+                    existing_data.get("requires_approval") != agent.requires_approval or
+                    existing_data.get("execution_type") != agent.execution_type or
+                    existing_data.get("s3_bucket_path") != agent.s3_bucket_path or
+                    existing_data.get("fly_machine_id") != agent.fly_machine_id
                 )
                 
                 if needs_update:
