@@ -10,6 +10,7 @@ from routes.root.router import router as root_router
 from routes.agent.router import router as agent_router
 from routes.webhook.router import router as webhook_router
 from routes.monitoring.router import router as monitoring_router
+from routes.context_monitoring.router import router as context_monitoring_router
 
 # Load all agents to trigger registration
 from agents.loader import load_all_agents
@@ -47,5 +48,6 @@ app.include_router(root_router)
 app.include_router(agent_router)
 app.include_router(webhook_router)
 app.include_router(monitoring_router)
+app.include_router(context_monitoring_router)
 
 

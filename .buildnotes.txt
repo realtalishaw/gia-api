@@ -1,0 +1,18 @@
+from context_engine.worker.tasks import ingest_context_data_task
+
+# Queue an ingestion task
+task = ingest_context_data_task.delay(
+    project_id="project_123",
+    data={"any": "structure", "nested": {"data": True}},
+    agent_name="growth_engineer",  # optional
+    data_type="log",  # optional
+    metadata={"source": "api"}  # optional
+)
+
+to run the context worker
+cd api
+celery -A context_engine.worker.celery_app worker --loglevel=info --queues=context_queue
+
+for ingestion of data we need agent_name or agent_id or something
+just in case like we need to route to an agent or a session
+because data is permissioned

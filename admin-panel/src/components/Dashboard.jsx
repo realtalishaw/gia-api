@@ -70,10 +70,28 @@ export default function Dashboard() {
             >
               Flower Monitoring
             </button>
+            <button
+              onClick={() => setActiveTab('context-worker')}
+              style={{
+                ...styles.tab,
+                ...(activeTab === 'context-worker' ? styles.tabActive : {}),
+              }}
+            >
+              Context Worker
+            </button>
           </div>
         </div>
         <div style={styles.tabContent}>
-          {activeTab === 'sessions' ? <AgentSessions /> : <FlowerMonitoring />}
+          {activeTab === 'sessions' ? (
+            <AgentSessions />
+          ) : activeTab === 'flower' ? (
+            <FlowerMonitoring />
+          ) : (
+            <FlowerMonitoring
+              title="Context Worker Monitoring"
+              basePath="/api/context-monitoring"
+            />
+          )}
         </div>
       </div>
     </div>

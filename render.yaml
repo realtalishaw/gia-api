@@ -18,6 +18,10 @@ services:
       #   sync: false
       # - key: CLOUDAMQP_URL
       #   sync: false
+      # - key: CONTEXT_FLOWER_URL
+      #   sync: false  # URL of gia-flower-context service (for context worker monitoring)
+      # - key: FLOWER_URL
+      #   sync: false  # URL of gia-flower service (for task worker monitoring)
 
   # Task Worker Service
   - type: worker
@@ -39,7 +43,7 @@ services:
       # - key: SUPABASE_KEY
       #   sync: false
 
-  # Flower Monitoring Service
+  # Flower Monitoring Service (Task Worker)
   - type: web
     name: gia-flower
     env: python
@@ -60,6 +64,54 @@ services:
       #   sync: false
       # - key: FLOWER_PASSWORD
       #   sync: false  # For Basic Auth, set a secure password
+
+  # Context Worker Service
+  - type: worker
+    name: gia-context-worker
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A context_engine.worker.celery_app worker --loglevel=info --queues=context_queue
+    rootDir: api
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # Add your environment variables here
+      # - key: CLOUDAMQP_URL
+      #   sync: false
+      # - key: RABBITMQ_URL
+      #   sync: false
+      # - key: SUPABASE_URL
+      #   sync: false
+      # - key: SUPABASE_SERVICE_ROLE_KEY
+      #   sync: false
+
+  # Flower Monitoring Service (Context Worker)
+  - type: web
+    name: gia-flower-context
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # For production, use Basic Auth or OAuth (see worker/README.md)
+    # Example with Basic Auth:
+    # startCommand: celery -A context_engine.worker.celery_app flower --port=$PORT --address=0.0.0.0 --basic-auth=admin:$FLOWER_CONTEXT_PASSWORD
+    # For local dev only (NOT for production):
+    startCommand: celery -A context_engine.worker.celery_app flower --port=$PORT --address=0.0.0.0 --unauthenticated_api
+    rootDir: api
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      # Add your environment variables here
+      # - key: CLOUDAMQP_URL
+      #   sync: false
+      # - key: RABBITMQ_URL
+      #   sync: false
+      # - key: FLOWER_CONTEXT_PASSWORD
+      #   sync: false  # For Basic Auth, set a secure password
+      # - key: CONTEXT_FLOWER_URL
+      #   sync: false  # Optional: Override Flower URL (defaults to service URL)
 
   # Admin Panel Service
   - type: web

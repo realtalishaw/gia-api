@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 
-export default function FlowerMonitoring() {
+export default function FlowerMonitoring({
+  title = 'Celery Monitoring',
+  basePath = '/api/monitoring',
+}) {
   const [activeView, setActiveView] = useState('workers')
   const [connectionError, setConnectionError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -26,7 +29,7 @@ export default function FlowerMonitoring() {
         setConnectionError(false)
         
         if (activeView === 'workers') {
-          const response = await fetch(`${apiUrl}/api/monitoring/workers`, {
+          const response = await fetch(`${apiUrl}${basePath}/workers`, {
             method: 'GET',
             mode: 'cors',
           })
@@ -45,7 +48,7 @@ export default function FlowerMonitoring() {
             throw new Error(`HTTP ${response.status}`)
           }
         } else if (activeView === 'tasks') {
-          const response = await fetch(`${apiUrl}/api/monitoring/tasks?limit=50`, {
+          const response = await fetch(`${apiUrl}${basePath}/tasks?limit=50`, {
             method: 'GET',
             mode: 'cors',
           })
@@ -56,7 +59,7 @@ export default function FlowerMonitoring() {
             throw new Error(`HTTP ${response.status}`)
           }
         } else if (activeView === 'queues') {
-          const response = await fetch(`${apiUrl}/api/monitoring/queues`, {
+          const response = await fetch(`${apiUrl}${basePath}/queues`, {
             method: 'GET',
             mode: 'cors',
           })
@@ -107,7 +110,7 @@ export default function FlowerMonitoring() {
     if (!taskId) return
     setLoadingDetails(true)
     try {
-      const response = await fetch(`${apiUrl}/api/monitoring/tasks/${taskId}`, {
+      const response = await fetch(`${apiUrl}${basePath}/tasks/${taskId}`, {
         method: 'GET',
         mode: 'cors',
       })
@@ -143,7 +146,7 @@ export default function FlowerMonitoring() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h2 style={styles.title}>Celery Monitoring</h2>
+        <h2 style={styles.title}>{title}</h2>
         <div style={styles.tabs}>
           <button
             onClick={() => {
