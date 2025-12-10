@@ -22,6 +22,8 @@ services:
       #   sync: false  # URL of gia-flower-context service (for context worker monitoring)
       # - key: FLOWER_URL
       #   sync: false  # URL of gia-flower service (for task worker monitoring)
+      - key: CORS_ORIGINS
+        value: http://localhost:5173,http://localhost:3000,https://gia-admin-panel.onrender.com
 
   # Task Worker Service
   - type: worker
@@ -133,3 +135,5 @@ services:
       #   sync: false
       # - key: VITE_FLOWER_URL
       #   sync: false
+      - key: VITE_API_URL
+        value: https://gia-api-po6g.onrender.com
